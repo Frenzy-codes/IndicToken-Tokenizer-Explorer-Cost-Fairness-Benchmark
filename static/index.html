@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tokenizer Explorer for Indian Languages</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root { --bg:#0f1220; --card:#181c30; --line:#2a3050; --text:#e8eaf6; --muted:#9aa3c7; --accent:#6c8cff; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); }
+  header { padding:24px 32px 8px; }
+  h1 { margin:0 0 4px; font-size:24px; }
+  p.sub { margin:0; color:var(--muted); }
+  main { max-width:1200px; margin:0 auto; padding:0 24px 48px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin:16px 0; }
+  .inputs { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  @media (max-width:800px){ .inputs, .grid2, .grid3 { grid-template-columns:1fr !important; } }
+  label { font-size:13px; color:var(--muted); display:block; margin-bottom:4px; }
+  textarea, input, select { width:100%; background:#10142a; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:8px; font:inherit; }
+  textarea { height:130px; resize:vertical; }
+  nav { display:flex; gap:6px; flex-wrap:wrap; margin-top:16px; }
+  nav button { background:transparent; color:var(--muted); border:1px solid var(--line); padding:8px 14px; border-radius:999px; cursor:pointer; font:inherit; }
+  nav button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button.primary { background:var(--accent); color:#fff; border:0; padding:9px 16px; border-radius:8px; cursor:pointer; font:inherit; }
+  button.primary:disabled { opacity:.5; cursor:wait; }
+  button.ghost { background:transparent; color:var(--text); border:1px solid var(--line); padding:8px 14px; border-radius:8px; cursor:pointer; font:inherit; }
+  .tab { display:none; } .tab.active { display:block; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+  .row select { width:auto; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  .chip { display:inline-block; margin:2px; padding:2px 7px; border-radius:6px; font-family:ui-monospace,Menlo,monospace; font-size:13px; background:#e8eefc; color:#111; }
+  .muted { color:var(--muted); font-size:13px; }
+  .metric { font-size:26px; font-weight:600; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); }
+  .llm { white-space:pre-wrap; line-height:1.55; margin-top:12px; }
+  .err { color:#ff8a8a; }
+  canvas { max-height:340px; }
+  .loading-banner { background:#1e2445; border:1px solid var(--accent); border-radius:8px; padding:12px 16px; margin:8px 0; color:var(--accent); display:flex; align-items:center; gap:10px; }
+  .loading-banner .spinner { width:18px; height:18px; border:2px solid var(--accent); border-top:2px solid transparent; border-radius:50%; animation:spin .8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg) } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Tokenizer Explorer for Indian Languages</h1>
+  <p class="sub">How do different tokenisers split English, Hindi and Marathi, and what does it cost?</p>
+</header>
+<main>
+  <div class="card">
+    <div class="inputs">
+      <div><label>English</label><textarea id="t_en"></textarea></div>
+      <div><label>Hindi</label><textarea id="t_hi"></textarea></div>
+      <div><label>Marathi</label><textarea id="t_mr"></textarea></div>
+    </div>
+    <p class="muted" style="margin:8px 0 0">Use the same meaning in all three languages so the comparison is fair.</p>
+  </div>
+
+  <nav id="nav">
+    <button data-tab="u1" class="active">U1 · Token probabilities</button>
+    <button data-tab="u2">U2 · BPE vs WordPiece vs SentencePiece</button>
+    <button data-tab="u3">U3 · BERT vs GPT + Whisper</button>
+    <button data-tab="u4">U4 · Charts</button>
+    <button data-tab="u5">U5 · Cost unfairness</button>
+  </nav>
+
+  <!-- U1 -->
+  <section class="tab active card" id="u1">
+    <h3>Per-token probability under a small LM (GPT-2)</h3>
+    <p class="muted">P(token | previous tokens). GPT-2 saw almost no Devanagari, so Hindi and Marathi shatter into byte fragments with very low probability.</p>
+    <div class="row">
+      <select id="u1_lang"><option value="en">English</option><option value="hi">Hindi</option><option value="mr">Marathi</option></select>
+      <button class="primary" id="u1_go">Compute</button>
+    </div>
+    <div id="u1_out"></div>
+  </section>
+
+  <!-- U2 -->
+  <section class="tab card" id="u2">
+    <h3>Three algorithm families</h3>
+    <div class="row">
+      <select id="u2_lang"><option value="en">English</option><option value="hi" selected>Hindi</option><option value="mr">Marathi</option></select>
+      <button class="primary" id="u2_go">Tokenise</button>
+      <button class="ghost" id="u2_llm">Ask the LLM to explain the differences</button>
+    </div>
+    <div id="u2_out" class="grid3"></div>
+    <div id="u2_llm_out" class="llm"></div>
+  </section>
+
+  <!-- U3 -->
+  <section class="tab card" id="u3">
+    <h3>BERT vs GPT tokenisers (+ Indic-Trained MuRIL)</h3>
+    <div class="row">
+      <select id="u3_lang"><option value="en">English</option><option value="hi" selected>Hindi</option><option value="mr">Marathi</option></select>
+      <button class="primary" id="u3_go">Compare</button>
+    </div>
+    <div id="u3_out" class="grid3"></div>
+    <p class="muted">Tokens like <code>&lt;0x..&gt;</code> are partial UTF-8 byte pieces where the tokeniser fell back to raw bytes. Notice how MuRIL (trained on Indian languages) preserves complete words!</p>
+    <hr style="border-color:var(--line)">
+    <h3>Speak Hindi or Marathi (Whisper)</h3>
+    <div class="row">
+      <select id="speech_lang"><option value="hi">Hindi</option><option value="mr">Marathi</option></select>
+      <button class="ghost" id="rec_btn">● Start recording</button>
+      <input type="file" id="audio_file_input" accept="audio/*" style="display:none">
+      <button class="ghost" id="upload_audio_btn">📁 Upload audio file</button>
+      <span class="muted" id="rec_status"></span>
+    </div>
+    <div id="transcript_box" style="display:none">
+      <div class="card" style="margin:8px 0"><span id="transcript"></span></div>
+      <button class="primary" id="use_transcript">Use as input text above</button>
+    </div>
+  </section>
+
+  <!-- U4 -->
+  <section class="tab card" id="u4">
+    <h3>Comparison charts</h3>
+    <button class="primary" id="u4_go">Generate charts</button>
+    <div class="grid2" style="margin-top:12px">
+      <div><canvas id="c_tokens"></canvas></div>
+      <div><canvas id="c_fert"></canvas></div>
+      <div><canvas id="c_bytes"></canvas></div>
+      <div><canvas id="c_family"></canvas></div>
+    </div>
+    <div id="u4_table" style="margin-top:12px;overflow-x:auto"></div>
+  </section>
+
+  <!-- U5 -->
+  <section class="tab card" id="u5">
+    <h3>Cost unfairness for Indian languages</h3>
+    <p class="muted">Same meaning, more tokens: every extra token is extra money, latency and lost context.</p>
+    <div class="row">
+      <div><label>Price per 1M input tokens (USD, edit to match your provider)</label><input id="price" type="number" step="0.25" value="2.5"></div>
+      <button class="primary" id="u5_go" style="align-self:flex-end">Calculate</button>
+      <button class="ghost" id="u5_llm" style="align-self:flex-end">Discuss with LLM</button>
+    </div>
+    <div class="grid2"><div><canvas id="c_cost"></canvas></div><div id="u5_table" style="overflow-x:auto"></div></div>
+    <div id="u5_llm_out" class="llm"></div>
+  </section>
+</main>
+
+<script>
+const SAMPLES = {
+  en: "India is a large and diverse country with over one billion people who speak more than twenty major languages. The Constitution recognises Hindi and English as official languages, and each state may adopt its own language for governance. Despite this diversity, festivals like Diwali and Holi bring communities together across linguistic boundaries. Indian cuisine, music, and cinema also reflect this rich tapestry of cultures and traditions.",
+  hi: "भारत एक बड़ा और विविधताओं से भरा देश है जहाँ एक अरब से अधिक लोग बीस से ज़्यादा प्रमुख भाषाएँ बोलते हैं। संविधान हिन्दी और अंग्रेज़ी को राजभाषा के रूप में मान्यता देता है और प्रत्येक राज्य शासन के लिए अपनी भाषा अपना सकता है। इतनी विविधता के बावजूद दीपावली और होली जैसे त्योहार भाषाई सीमाओं के पार समुदायों को एक साथ लाते हैं। भारतीय व्यंजन, संगीत और सिनेमा भी संस्कृतियों और परंपराओं की इस समृद्ध विरासत को दर्शाते हैं।",
+  mr: "भारत हा एक मोठा आणि विविधतांनी भरलेला देश आहे जिथे एक अब्जाहून अधिक लोक वीसहून अधिक प्रमुख भाषा बोलतात. संविधान हिंदी आणि इंग्रजीला अधिकृत भाषा म्हणून मान्यता देते आणि प्रत्येक राज्य प्रशासनासाठी स्वतःची भाषा स्वीकारू शकते. एवढ्या विविधतेनंतरही दिवाळी आणि होळी सारखे सण भाषिक सीमांच्या पलीकडे समुदायांना एकत्र आणतात. भारतीय पाककला, संगीत आणि चित्रपट देखील संस्कृती आणि परंपरांच्या या समृद्ध वारशाचे प्रतिबिंब आहेत."
+};
+const $ = id => document.getElementById(id);
+for (const k in SAMPLES) $("t_" + k).value = SAMPLES[k];
+const texts = () => ({ en: $("t_en").value, hi: $("t_hi").value, mr: $("t_mr").value });
+const LANGNAME = { en: "English", hi: "Hindi", mr: "Marathi" };
+
+async function api(path, body) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!r.ok) { let d = r.statusText; try { d = (await r.json()).detail || d; } catch (e) {} throw new Error(d); }
+  return r.json();
+}
+function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function chip(t, bg) { return `<span class="chip"${bg ? ` style="background:${bg}"` : ""}>${esc(t)}</span>`; }
+function probColor(p) { const x = Math.min(1, p * 3); return `rgb(${Math.round(255 - 150 * x)},${Math.round(80 + 175 * x)},120)`; }
+async function busy(btn, fn) {
+  const old = btn.textContent; btn.disabled = true; btn.textContent = "Working…";
+  try { await fn(); } finally { btn.disabled = false; btn.textContent = old; }
+}
+function showErr(el, e) { el.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+
+// tabs
+document.querySelectorAll("#nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("#nav button").forEach(x => x.classList.toggle("active", x === b));
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.id === b.dataset.tab));
+});
+
+// ---- U1
+$("u1_go").onclick = e => busy(e.target, async () => {
+  const out = $("u1_out");
+  try {
+    const d = await api("/api/probs", { text: texts()[$("u1_lang").value] });
+    out.innerHTML = `<div>${d.tokens.map(t => chip(t.token, probColor(t.prob))).join("")}</div>
+      <div class="row" style="margin-top:12px"><div><div class="muted">Perplexity</div><div class="metric">${d.perplexity.toFixed(1)}</div></div>
+      <div><div class="muted">GPT-2 tokens</div><div class="metric">${d.tokens.length}</div></div></div>
+      <canvas id="c_probs"></canvas>
+      <table><tr><th>#</th><th>Token</th><th>Probability</th><th>Model's top guess</th></tr>
+      ${d.tokens.map((t, i) => `<tr><td>${i}</td><td>${esc(t.token)}</td><td>${t.prob.toExponential(2)}</td><td>${esc(t.top_guess)}</td></tr>`).join("")}</table>`;
+    draw("c_probs", "bar", d.tokens.map((t, i) => i + ":" + t.token), [{ label: "P(token | context)", data: d.tokens.map(t => t.prob) }], "Token probability (log scale)", true);
+  } catch (err) { showErr(out, err); }
+});
+
+// ---- U2
+const FAMS = ["GPT-4 / cl100k (BPE)", "BERT multilingual (WordPiece)", "XLM-R (SentencePiece)"];
+$("u2_go").onclick = e => busy(e.target, async () => {
+  const out = $("u2_out");
+  try {
+    const d = await api("/api/tokenize", { text: texts()[$("u2_lang").value], tokenizers: FAMS });
+    out.innerHTML = FAMS.map(n => `<div class="card" style="margin:0"><b>${d[n].family}</b><div class="muted">${n}</div>
+      <div style="margin:8px 0">${d[n].tokens.map(t => chip(t)).join("")}</div><div class="muted">${d[n].count} tokens</div></div>`).join("");
+  } catch (err) { showErr(out, err); }
+});
+$("u2_llm").onclick = e => busy(e.target, async () => {
+  const out = $("u2_llm_out");
+  try { out.textContent = (await api("/api/explain", { kind: "u2", texts: texts(), lang: $("u2_lang").value })).text; }
+  catch (err) { showErr(out, err); }
+});
+
+// ---- U3
+$("u3_go").onclick = e => busy(e.target, async () => {
+  const out = $("u3_out"), names = ["BERT multilingual (WordPiece)", "GPT-4o / o200k (BPE)", "MuRIL Indic (WordPiece)"];
+  try {
+    const d = await api("/api/tokenize", { text: texts()[$("u3_lang").value], tokenizers: names });
+    out.innerHTML = names.map(n => `<div class="card" style="margin:0"><b>${n}</b>
+      <div style="margin:8px 0">${d[n].tokens.map(t => chip(t)).join("")}</div><div class="muted">${d[n].count} tokens</div></div>`).join("");
+  } catch (err) { showErr(out, err); }
+});
+
+$("upload_audio_btn").onclick = () => $("audio_file_input").click();
+$("audio_file_input").onchange = async () => {
+  const file = $("audio_file_input").files[0];
+  if (!file) return;
+  const st = $("rec_status");
+  st.textContent = "Transcribing " + file.name + "…";
+  lastLang = $("speech_lang").value;
+  const fd = new FormData();
+  fd.append("audio", file, file.name);
+  fd.append("lang", lastLang);
+  try {
+    const r = await fetch("/api/transcribe", { method: "POST", body: fd });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || r.statusText);
+    $("transcript").textContent = d.text;
+    $("transcript_box").style.display = "block";
+    st.textContent = "Transcription complete!";
+  } catch (err) {
+    st.innerHTML = `<span class="err">${esc(err.message)}</span>`;
+  } finally {
+    $("audio_file_input").value = "";
+  }
+};
+
+let recorder, chunks = [], lastLang = "hi";
+$("rec_btn").onclick = async () => {
+  const btn = $("rec_btn"), st = $("rec_status");
+  if (recorder && recorder.state === "recording") { recorder.stop(); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recorder = new MediaRecorder(stream); chunks = [];
+    recorder.ondataavailable = ev => chunks.push(ev.data);
+    recorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      btn.textContent = "● Start recording"; st.textContent = "Transcribing…";
+      const mime = recorder.mimeType || "audio/webm";
+      let ext = "webm";
+      if (mime.includes("mp4")) ext = "mp4";
+      else if (mime.includes("ogg")) ext = "ogg";
+      else if (mime.includes("wav")) ext = "wav";
+      const blob = new Blob(chunks, { type: mime });
+      const fd = new FormData();
+      fd.append("audio", blob, `speech.${ext}`); lastLang = $("speech_lang").value; fd.append("lang", lastLang);
+      try {
+        const r = await fetch("/api/transcribe", { method: "POST", body: fd });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || r.statusText);
+        $("transcript").textContent = d.text; $("transcript_box").style.display = "block"; st.textContent = "";
+      } catch (err) { st.innerHTML = `<span class="err">${esc(err.message)}</span>`; }
+    };
+    recorder.start(); btn.textContent = "■ Stop"; st.textContent = "Recording…";
+  } catch (err) { st.innerHTML = `<span class="err">Microphone unavailable: ${esc(err.message)}</span>`; }
+};
+$("use_transcript").onclick = () => { $("t_" + lastLang).value = $("transcript").textContent; };
+
+// ---- charts
+const charts = {};
+const PALETTE = ["#6c8cff", "#ff9f5a", "#4cd1a0", "#d36cff", "#ffd166"];
+function draw(id, type, labels, datasets, title, logY) {
+  if (charts[id]) charts[id].destroy();
+  datasets.forEach((d, i) => d.backgroundColor = d.backgroundColor || PALETTE[i % PALETTE.length]);
+  charts[id] = new Chart($(id), {
+    type, data: { labels, datasets },
+    options: { responsive: true, plugins: { title: { display: true, text: title, color: "#e8eaf6" }, legend: { labels: { color: "#e8eaf6" } } },
+      scales: { x: { ticks: { color: "#9aa3c7" } }, y: { type: logY ? "logarithmic" : "linear", ticks: { color: "#9aa3c7" }, grid: { color: "#2a3050" } } } }
+  });
+}
+function grouped(rows, field) {
+  const tk = [...new Set(rows.map(r => r.tokenizer))];
+  return [tk, ["en", "hi", "mr"].map(c => ({ label: LANGNAME[c], data: tk.map(t => (rows.find(r => r.tokenizer === t && r.code === c) || {})[field] ?? null) }))];
+}
+function table(rows, cols) {
+  return `<table><tr>${cols.map(c => `<th>${c[1]}</th>`).join("")}</tr>${rows.map(r => `<tr>${cols.map(c => `<td>${r[c[0]] ?? ""}</td>`).join("")}</tr>`).join("")}</table>`;
+}
+
+// ---- U4
+$("u4_go").onclick = e => busy(e.target, async () => {
+  try {
+    const rows = await api("/api/stats", { texts: texts() });
+    let [l, d] = grouped(rows, "tokens"); draw("c_tokens", "bar", l, d, "Token count");
+    [l, d] = grouped(rows, "fertility"); draw("c_fert", "bar", l, d, "Fertility: tokens per word (lower is better)");
+    [l, d] = grouped(rows, "bytes_per_token"); draw("c_bytes", "bar", l, d, "UTF-8 bytes per token (higher = better compression)");
+    // average fertility by algorithm family, per language
+    const fams = ["BPE", "WordPiece", "SentencePiece"];
+    const fd = ["en", "hi", "mr"].map(c => ({ label: LANGNAME[c], data: fams.map(f => { const x = rows.filter(r => r.family === f && r.code === c); return x.length ? +(x.reduce((a, r) => a + r.fertility, 0) / x.length).toFixed(2) : null; }) }));
+    draw("c_family", "bar", fams, fd, "Average fertility by algorithm family");
+    $("u4_table").innerHTML = table(rows, [["tokenizer", "Tokenizer"], ["language", "Language"], ["tokens", "Tokens"], ["words", "Words"], ["fertility", "Fertility"], ["chars_per_token", "Chars/token"], ["bytes_per_token", "Bytes/token"]]);
+  } catch (err) { $("u4_table").innerHTML = `<p class="err">${esc(err.message)}</p>`; }
+});
+
+// ---- U5
+const GPTS = ["GPT-2 (BPE)", "GPT-4 / cl100k (BPE)", "GPT-4o / o200k (BPE)"];
+$("u5_go").onclick = e => busy(e.target, async () => {
+  try {
+    const rows = await api("/api/stats", { texts: texts(), tokenizers: GPTS, price: +$("price").value });
+    const [l, d] = grouped(rows, "cost_multiplier"); draw("c_cost", "bar", l, d, "Cost multiplier vs English (same meaning)");
+    $("u5_table").innerHTML = table(rows, [["tokenizer", "Tokenizer"], ["language", "Language"], ["tokens", "Tokens"], ["cost_multiplier", "× English"], ["cost_per_1k_texts", "$ per 1k texts"], ["effective_context_pct", "Context left %"]]);
+  } catch (err) { $("u5_table").innerHTML = `<p class="err">${esc(err.message)}</p>`; }
+});
+$("u5_llm").onclick = e => busy(e.target, async () => {
+  const out = $("u5_llm_out");
+  try { out.textContent = (await api("/api/explain", { kind: "u5", texts: texts(), price: +$("price").value })).text; }
+  catch (err) { showErr(out, err); }
+});
+</script>
+</body>
+</html>

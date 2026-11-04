@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+python-multipart
+transformers>=4.44
+torch
+tiktoken
+sentencepiece
+protobuf
+openai>=1.40
