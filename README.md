@@ -1,8 +1,3 @@
----
-title: Tokenizer Explorer
-sdk: docker
-app_port: 7860
----
 # Tokenizer Explorer for Indian Languages
 
 A web application that demonstrates how different tokenizers split **English, Hindi and Marathi** text, and what that costs users in tokens, money, and context window. Built for a Generative AI course assignment covering Units 1–5.
