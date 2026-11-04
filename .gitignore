@@ -7,4 +7,7 @@ dist/
 build/
 .DS_Store
 test_syntax.py
+integrate_stitch.py
+stitch_screen.html
+static/stitch_clean.html
 
