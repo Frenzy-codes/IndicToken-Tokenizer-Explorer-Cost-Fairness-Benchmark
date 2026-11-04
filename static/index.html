@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tokenizer Explorer for Indian Languages</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
   :root { --bg:#0f1220; --card:#181c30; --line:#2a3050; --text:#e8eaf6; --muted:#9aa3c7; --accent:#6c8cff; }
   * { box-sizing:border-box; }
@@ -35,7 +36,18 @@
   .metric { font-size:26px; font-weight:600; }
   table { width:100%; border-collapse:collapse; font-size:13px; }
   th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); }
-  .llm { white-space:pre-wrap; line-height:1.55; margin-top:12px; }
+  .llm { line-height:1.65; margin-top:16px; background:#12162a; padding:16px; border-radius:10px; border:1px solid var(--line); }
+  .llm:empty { display:none; padding:0; border:none; }
+  .llm h1, .llm h2, .llm h3, .llm h4 { color:#fff; margin:16px 0 8px; }
+  .llm h3 { font-size:16px; border-bottom:1px solid var(--line); padding-bottom:4px; }
+  .llm table { width:100%; border-collapse:collapse; margin:14px 0; font-size:13px; }
+  .llm th, .llm td { border:1px solid var(--line); padding:8px 12px; text-align:left; vertical-align:top; }
+  .llm th { background:#1b213c; color:var(--accent); font-weight:600; }
+  .llm tr:nth-child(even) { background:rgba(255,255,255,0.02); }
+  .llm code { background:#1b213c; color:#ffb454; padding:2px 6px; border-radius:4px; font-family:ui-monospace,Menlo,monospace; font-size:12px; }
+  .llm ul, .llm ol { padding-left:22px; margin:8px 0; }
+  .llm li { margin-bottom:6px; }
+  .llm p { margin:8px 0; }
   .err { color:#ff8a8a; }
   canvas { max-height:340px; }
   .loading-banner { background:#1e2445; border:1px solid var(--accent); border-radius:8px; padding:12px 16px; margin:8px 0; color:var(--accent); display:flex; align-items:center; gap:10px; }
@@ -186,6 +198,14 @@ $("u1_go").onclick = e => busy(e.target, async () => {
   } catch (err) { showErr(out, err); }
 });
 
+function renderMarkdown(el, text) {
+  if (typeof marked !== "undefined" && marked.parse) {
+    el.innerHTML = marked.parse(text);
+  } else {
+    el.textContent = text;
+  }
+}
+
 // ---- U2
 const FAMS = ["GPT-4 / cl100k (BPE)", "BERT multilingual (WordPiece)", "XLM-R (SentencePiece)"];
 $("u2_go").onclick = e => busy(e.target, async () => {
@@ -198,8 +218,10 @@ $("u2_go").onclick = e => busy(e.target, async () => {
 });
 $("u2_llm").onclick = e => busy(e.target, async () => {
   const out = $("u2_llm_out");
-  try { out.textContent = (await api("/api/explain", { kind: "u2", texts: texts(), lang: $("u2_lang").value })).text; }
-  catch (err) { showErr(out, err); }
+  try {
+    const res = await api("/api/explain", { kind: "u2", texts: texts(), lang: $("u2_lang").value });
+    renderMarkdown(out, res.text);
+  } catch (err) { showErr(out, err); }
 });
 
 // ---- U3
@@ -313,8 +335,10 @@ $("u5_go").onclick = e => busy(e.target, async () => {
 });
 $("u5_llm").onclick = e => busy(e.target, async () => {
   const out = $("u5_llm_out");
-  try { out.textContent = (await api("/api/explain", { kind: "u5", texts: texts(), price: +$("price").value })).text; }
-  catch (err) { showErr(out, err); }
+  try {
+    const res = await api("/api/explain", { kind: "u5", texts: texts(), price: +$("price").value });
+    renderMarkdown(out, res.text);
+  } catch (err) { showErr(out, err); }
 });
 </script>
 </body>

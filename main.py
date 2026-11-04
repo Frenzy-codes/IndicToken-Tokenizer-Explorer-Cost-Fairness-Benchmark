@@ -2,6 +2,10 @@ import math
 import os
 from typing import Dict, List, Optional
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import tiktoken
 import torch
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -97,9 +101,10 @@ def llm(prompt: str) -> str:
     if not key:
         raise HTTPException(503, "GROQ_API_KEY is not set on the server")
     c = OpenAI(api_key=key, base_url=os.getenv("LLM_BASE_URL", "https://api.groq.com/openai/v1"))
+    model_name = os.getenv("CHAT_MODEL", "openai/gpt-oss-120b")
     try:
         r = c.chat.completions.create(
-            model=os.getenv("CHAT_MODEL", "llama-3.3-70b-versatile"),
+            model=model_name,
             messages=[
                 {"role": "system", "content": "You are an NLP teaching assistant. Be precise and concise."},
                 {"role": "user", "content": prompt},
