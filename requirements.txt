@@ -9,3 +9,5 @@ protobuf
 openai>=1.40
 gradio>=4.0
 python-dotenv
+accelerate
+

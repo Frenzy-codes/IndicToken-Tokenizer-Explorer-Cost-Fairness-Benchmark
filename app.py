@@ -11,3 +11,4 @@ PORT = int(os.environ.get("PORT", 7860))
 
 if __name__ == "__main__":
     uvicorn.run(fastapi_app, host="0.0.0.0", port=PORT)
+
